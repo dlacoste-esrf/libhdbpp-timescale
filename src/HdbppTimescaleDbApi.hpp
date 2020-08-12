@@ -72,6 +72,8 @@ public:
     auto supported(HdbppFeatures feature) -> bool override;
 
 private:
+    void doInsertEvent(Tango::EventData *event_data, const HdbEventDataType &data_type);
+
     std::unique_ptr<hdbpp_internal::pqxx_conn::DbConnection> _conn;
     std::string _identity;
 };

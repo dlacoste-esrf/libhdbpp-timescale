@@ -68,7 +68,7 @@ namespace pqxx_conn
         template<typename T>
         struct DataToString
         {
-            static auto run(std::unique_ptr<std::vector<T>> &value, bool is_array) -> std::string
+            static auto run(const std::unique_ptr<std::vector<T>> &value, bool is_array) -> std::string
             {
                 if (! is_array)
                     return pqxx::to_string((*value)[0]);
@@ -81,7 +81,7 @@ namespace pqxx_conn
         template<>
         struct DataToString<bool>
         {
-            static auto run(std::unique_ptr<std::vector<bool>> &value, bool is_array) -> std::string
+            static auto run(const std::unique_ptr<std::vector<bool>> &value, bool is_array) -> std::string
             {
                 // a vector<bool> is not actually a vector<bool>, rather its some kind of bitfield. When
                 // trying to return an element, we appear to get some kind of bitfield reference,
@@ -103,7 +103,7 @@ namespace pqxx_conn
         template<>
         struct DataToString<std::string>
         {
-            static auto run(std::unique_ptr<std::vector<std::string>> &value, bool is_array) -> std::string
+            static auto run(const std::unique_ptr<std::vector<std::string>> &value, bool is_array) -> std::string
             {
                 // arrays of strings need both the ARRAY keywords and dollar escaping, this is so we
                 // do not have to rely on the postgres escape functions that double and then store
@@ -139,6 +139,7 @@ namespace pqxx_conn
     const string StoreHistoryEvent = "StoreHistoryEvent";
     const string StoreParameterEvent = "StoreParameterEvent";
     const string StoreDataEvent = "StoreDataEvent";
+    const string StoreDataEvents = "StoreDataEvents";
     const string StoreDataEventError = "StoreDataEventError";
     const string StoreErrorString = "StoreErrorString";
     const string StoreTtl = "StoreTtl";
@@ -202,15 +203,23 @@ namespace pqxx_conn
         // internal caching, so its less efficient, but can be chained in a pipe
         // to batch data to the database.
         template<typename T>
-        auto storeDataEventString(const std::string &full_attr_name,
+        static auto storeDataEventString(const std::string &id,
             const std::string &event_time,
             const std::string &quality,
-            std::unique_ptr<vector<T>> &value_r,
-            std::unique_ptr<vector<T>> &value_w,
-            const AttributeTraits &traits) -> const std::string;
+            const std::unique_ptr<vector<T>> &value_r,
+            const std::unique_ptr<vector<T>> &value_w,
+            const AttributeTraits &traits) -> std::string;
 
         // Builds a prepared statement for data event errors
         auto storeDataEventErrorStatement(const AttributeTraits &traits) -> const std::string &;
+
+        // A vareint of storeDataEventErrorStatement that build and returns a string
+        // instead of a prepared statement
+        static auto storeDataEventErrorString(const std::string &id,
+            const std::string &event_time,
+            const std::string &quality,
+            const std::string &err_id,
+            const AttributeTraits &traits) -> std::string;
 
         // Utility
         void print(std::ostream &os) const noexcept;
@@ -283,12 +292,12 @@ namespace pqxx_conn
     }
 
     template<typename T>
-    auto QueryBuilder::storeDataEventString(const std::string &full_attr_name,
+    auto QueryBuilder::storeDataEventString(const std::string &id,
         const std::string &event_time,
         const std::string &quality,
-        std::unique_ptr<vector<T>> &value_r,
-        std::unique_ptr<vector<T>> &value_w,
-        const AttributeTraits &traits) -> const std::string
+        const std::unique_ptr<vector<T>> &value_r,
+        const std::unique_ptr<vector<T>> &value_w,
+        const AttributeTraits &traits) -> std::string
     {
         auto query = "INSERT INTO " + QueryBuilder::tableName(traits) + " (" + schema::DatColId + "," +
             schema::DatColDataTime;
@@ -300,7 +309,7 @@ namespace pqxx_conn
             query = query + "," + schema::DatColValueW;
 
         // split to ensure increments are in the correct order
-        query = query + "," + schema::DatColQuality + ") VALUES ('" + full_attr_name + "'";
+        query = query + "," + schema::DatColQuality + ") VALUES ('" + id + "'";
         query = query + ",TO_TIMESTAMP(" + event_time + ")";
 
         // add the read parameter with cast

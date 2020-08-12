@@ -64,6 +64,12 @@ namespace pqxx_conn
         auto isOpen() const noexcept -> bool override { return _connected; }
         auto isClosed() const noexcept -> bool override { return !isOpen(); }
 
+        // this API allows the connection to buffer the event data store
+        // requests, and send them all at once to the db, this will increase
+        // insert time. Flush will execute the sql and clear the buffer
+        void buffer(bool enable) { _enable_buffering = enable; }
+        void flush();
+
         // storage API
 
         // store a new attribute and its conf data into the database
@@ -100,8 +106,8 @@ namespace pqxx_conn
         void storeDataEvent(const std::string &full_attr_name,
             double event_time,
             int quality,
-            std::unique_ptr<vector<T>> value_r,
-            std::unique_ptr<vector<T>> value_w,
+            std::unique_ptr<std::vector<T>> value_r,
+            std::unique_ptr<std::vector<T>> value_w,
             const AttributeTraits &traits);
 
         // store a data error event in the data tables
@@ -161,6 +167,13 @@ namespace pqxx_conn
 
         // configured db access method
         DbStoreMethod _db_store_method;
+
+        // it is possible to buffer store requests as sql strings, then flush
+        // them all to the database at once, this increases insert speed, since
+        // multiple statements can be sent across the wire at once. This vector
+        // holds the preapred sql until the connection is flushed
+        bool _enable_buffering = false;
+        std::vector<std::string> _sql_buffer;
     };
 } // namespace pqxx_conn
 } // namespace hdbpp_internal

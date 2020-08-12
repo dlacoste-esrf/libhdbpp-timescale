@@ -325,6 +325,31 @@ namespace pqxx_conn
 
     //=============================================================================
     //=============================================================================
+    auto QueryBuilder::storeDataEventErrorString(const string &id,
+        const string &event_time,
+        const string &quality,
+        const string &err_id,
+        const AttributeTraits &traits) -> std::string
+    {
+        // clang-format off
+        auto query = "INSERT INTO " + 
+            QueryBuilder::tableName(traits) + " (" +
+            schema::DatColId + "," +
+            schema::DatColDataTime + "," + 
+            schema::DatColQuality + "," + 
+            schema::DatColErrorDescId + ") " + 
+            "VALUES (" + 
+                id + "," +
+                "TO_TIMESTAMP(" + event_time + ")," +
+                quality + "," +
+                err_id + ")";
+        // clang-format on
+
+        return query;
+    }
+
+    //=============================================================================
+    //=============================================================================
     auto QueryBuilder::storeErrorStatement() -> const string &
     {
         // clang-format off
